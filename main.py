@@ -3,24 +3,12 @@ from tkinter import *
 from PIL import Image as PILImage
 from PIL import ImageTk
 
-# To do:
-
-# Add is_check() method using create_all_possible_moves
-# Do this by adding an is_attacking attribute to each piece with a list of the names of pieces from possible_positions
-# If king is found in any of those is_attacking pieces (add all of them to a single list or something)
-# There is check.
-# To find out if the move the player tries to make is also in check, change the position of the king (not visually displayed)
-# (so don't call redraw_board) and then use the same function.
-
-# Add is_checkmate() method by checking if all of the positions around the king lead to check
-# AND no move can be made to block the checkmate (may be harder)
-
-
 current_player = -1
 score = {"p1": 0, "p2": 0}
 # This list will be used to check where the player is moving to, so it will contain a max of 2 elements
 squares_clicked_on = []
 piece_moves = []
+duck_squares = []
 
 
 class Game:
@@ -32,7 +20,10 @@ class Game:
         self.winner = 0
         self.create_board()
         self.current_player = self.p1.colour
+        global duck_image
         global current_player
+        self.duck_placed = False
+        self.duck = Duck("duck", duck_image, 2)
         # self.create_possible_moves_all_pieces()
 
     def create_board(self):
@@ -49,30 +40,39 @@ class Game:
                         width=60,
                         command=lambda i=i, j=j: self.check_move(game.board[i][j].position)
                     ))
-                self.squares[i][j].grid(row=i, column=j)
+                self.squares[i][j].grid(row=i + 1, column=j)
 
         # Add pieces to the actual board
-        self.board[0][0] = self.p2.pieces[8]
-        self.board[0][1] = self.p2.pieces[10]
-        self.board[0][2] = self.p2.pieces[12]
-        self.board[0][3] = self.p2.pieces[14]
-        self.board[0][4] = self.p2.pieces[15]
-        self.board[0][5] = self.p2.pieces[13]
-        self.board[0][6] = self.p2.pieces[11]
-        self.board[0][7] = self.p2.pieces[9]
+        self.board[0][0] = self.p2.pieces["rook1"]
+        self.board[0][1] = self.p2.pieces["knight1"]
+        self.board[0][2] = self.p2.pieces["bishop1"]
+        self.board[0][3] = self.p2.pieces["queen"]
+        self.board[0][4] = self.p2.pieces["king"]
+        self.board[0][5] = self.p2.pieces["bishop2"]
+        self.board[0][6] = self.p2.pieces["knight2"]
+        self.board[0][7] = self.p2.pieces["rook2"]
         for i in range(8):
-            self.board[1][i] = self.p2.pieces[i]
+            self.board[1][i] = self.p2.pieces[f"pawn{i + 1}"]
 
-        self.board[7][0] = self.p1.pieces[8]
-        self.board[7][1] = self.p1.pieces[10]
-        self.board[7][2] = self.p1.pieces[12]
-        self.board[7][3] = self.p1.pieces[14]
-        self.board[7][4] = self.p1.pieces[15]
-        self.board[7][5] = self.p1.pieces[13]
-        self.board[7][6] = self.p1.pieces[11]
-        self.board[7][7] = self.p1.pieces[9]
+        self.board[7][0] = self.p1.pieces["rook1"]
+        self.board[7][1] = self.p1.pieces["knight1"]
+        self.board[7][2] = self.p1.pieces["bishop1"]
+        self.board[7][3] = self.p1.pieces["queen"]
+        self.board[7][4] = self.p1.pieces["king"]
+        self.board[7][5] = self.p1.pieces["bishop2"]
+        self.board[7][6] = self.p1.pieces["knight2"]
+        self.board[7][7] = self.p1.pieces["rook2"]
         for i in range(8):
-            self.board[6][i] = self.p1.pieces[i]
+            self.board[6][i] = self.p1.pieces[f"pawn{i + 1}"]
+
+    def swap_board_squares(self, square1, square2):
+        temp = self.board[square1[0]][square1[1]]
+        self.board[square1[0]][square1[1]] = self.board[square2[0]][square2[1]]
+        temp.position = [square2[0], square2[1]]
+        self.board[square2[0]][square2[1]] = temp
+
+    def make_check_move_command(self, x, y):
+        return lambda: self.check_move(game.board[x][y].position)
 
     def redraw_board(self, selected_square, highlight):
         global transparent_image
@@ -83,14 +83,14 @@ class Game:
                         image=game.board[i][j].image,
                         height=60,
                         width=60,
-                        command=lambda i=i, j=j: self.check_move(game.board[i][j].position)
+                        command=self.make_check_move_command(i, j)
                     )
                 else:
                     self.squares[i][j].config(
                         image=transparent_image,
                         height=60,
                         width=60,
-                        command=lambda i=i, j=j: self.check_move(game.board[i][j].position)
+                        command=self.make_check_move_command(i, j)
                     )
 
                 # The following code is for hiding the possible moves, which are shown when creating possible moves
@@ -112,78 +112,62 @@ class Game:
         print(position)
         piece = self.board[position[0]][position[1]]
         print(piece.name)
-        # print(piece.possible_moves)
 
-        if piece.direction == current_player or piece.direction == 0 or (
-                piece.direction != current_player and len(squares_clicked_on) == 1):
-            # If the player has clicked of their pieces to select, or has clicked the square to move one of their pieces to
+        if not self.duck_placed:
+            if piece.name == "None":
+                self.duck.position = position
+                if len(duck_squares) == 1:
+                    self.swap_board_squares(position, duck_squares[0])
+                    duck_squares[0] = position
+                else:
+                    self.board[position[0]][position[1]] = self.duck
+                self.duck_placed = True
+                duck_squares.clear()
+                duck_squares.append([position[0], position[1]])
+                self.redraw_board(None, False)
+        else:
+            if piece.direction == current_player or piece.direction == 0 or (
+                    piece.direction != current_player and len(squares_clicked_on) == 1):
+                # If the player has clicked of their pieces to select, or has clicked the square to move one of their pieces to
 
-            piece.possible_moves = []
-            piece.create_possible_moves(self.board, True)
+                piece.possible_moves = []
+                piece.create_possible_moves(self.board, True)
 
-            if len(squares_clicked_on) == 1 and piece.position == squares_clicked_on[0]:
-                # If the player has clicked on the same square as the square selected to move to, allow them to rechoose
-                self.redraw_board(squares_clicked_on[0], False)
-                squares_clicked_on = []
-                piece_moves = []
-            else:
-                if len(squares_clicked_on) == 0 and piece.name != "None":
-                    # If the player has clicked on a valid piece of theirs to select
-                    squares_clicked_on.append(position)
-                    self.redraw_board(squares_clicked_on[0], True)
-                    piece_moves.append(piece.possible_moves)
-                    print(f"1. {squares_clicked_on}")
-                elif len(squares_clicked_on) == 1:
-                    # If the player has clicked on a square to move the already selected piece to
-
-                    if position in piece_moves[0]:
-                        # If the square to move to is a valid move option
-                        original_pos = squares_clicked_on[0]
-
-                        # Change the piece's position attribute
-                        self.board[original_pos[0]][original_pos[1]].position = position
-                        # Change the location on the board
-                        self.board[position[0]][position[1]] = self.board[original_pos[0]][original_pos[1]]
-                        self.board[original_pos[0]][original_pos[1]] = Piece("None", transparent_image, 0,
-                                                                             [original_pos[0], original_pos[1]])
-                        if current_player == -1:
-                            current_player = 1
-                        else:
-                            current_player = -1
-
+                if len(squares_clicked_on) == 1 and piece.position == squares_clicked_on[0]:
+                    # If the player has clicked on the same square as the square selected to move to, allow them to rechoose
                     self.redraw_board(squares_clicked_on[0], False)
                     squares_clicked_on = []
                     piece_moves = []
+                else:
+                    if len(squares_clicked_on) == 0 and piece.name != "None":
+                        # If the player has clicked on a valid piece of theirs to select
+                        squares_clicked_on.append(position)
+                        self.redraw_board(squares_clicked_on[0], True)
+                        piece_moves.append(piece.possible_moves)
+                        print(f"1. {squares_clicked_on}")
+                    elif len(squares_clicked_on) == 1:
+                        # If the player has clicked on a square to move the already selected piece to
 
-    # This method can be used to get all the squares that are being attacked by every piece on the board
-    # EXCEPT THE KING AS THIS WILL CAUSE A RECURSION LOOP
-    # This method will need to be adapted to check where the opposite king can move to
-    def create_possible_moves_all_pieces(self):
-        p1_positions_attacking = []
-        p2_positions_attacking = []
-        for piece in self.p1.pieces:
-            if piece.name != "king":
-                piece.create_possible_moves(self.board, False)
-                p1_positions_attacking.extend(piece.possible_moves)
-        for piece in self.p2.pieces:
-            if piece.name != "king":
-                piece.create_possible_moves(self.board, False)
-                p2_positions_attacking.extend(piece.possible_moves)
+                        if position in piece_moves[0]:
+                            # If the square to move to is a valid move option
+                            original_pos = squares_clicked_on[0]
 
-        return [p1_positions_attacking, p2_positions_attacking]
+                            # Change the piece's position attribute
+                            self.board[original_pos[0]][original_pos[1]].position = position
+                            # Change the location on the board
+                            self.board[position[0]][position[1]] = self.board[original_pos[0]][original_pos[1]]
+                            self.board[original_pos[0]][original_pos[1]] = Piece("None", transparent_image, 0,
+                                                                                 [original_pos[0], original_pos[1]])
+                            if current_player == -1:
+                                current_player = 1
+                            else:
+                                current_player = -1
 
-    def is_check(self, king_position):
-        attacked_positions = self.create_possible_moves_all_pieces()
-        if current_player == -1:
-            if king_position in attacked_positions[1]:
-                return True
-            else:
-                return False
-        else:
-            if king_position in attacked_positions[0]:
-                return True
-            else:
-                return False
+                            self.duck_placed = False
+
+                        self.redraw_board(squares_clicked_on[0], False)
+                        squares_clicked_on = []
+                        piece_moves = []
 
 
 # Note: colour is represented by -1 for white, and 1 for black
@@ -191,7 +175,7 @@ class Player:
     def __init__(self, name, colour):
         self.name = name
         self.colour = colour
-        self.pieces = []
+        self.pieces = {}
         # This may be the LEAST efficient and unnecessarily complicated way to set up the pieces, but oh well
         if colour == 1:
             first_row = 0
@@ -229,9 +213,9 @@ class Player:
             image = ImageTk.PhotoImage(PILImage.open(imagepath))
 
             if "pawn" in piece_name:
-                self.pieces.append(Pawn(piece_name, image, colour, piece_names[piece_name]))
+                self.pieces[piece_name] = (Pawn(piece_name, image, colour, piece_names[piece_name]))
             else:
-                self.pieces.append(Piece(piece_name, image, colour, piece_names[piece_name]))
+                self.pieces[piece_name] = (Piece(piece_name, image, colour, piece_names[piece_name]))
 
 
 class Piece:
@@ -270,33 +254,35 @@ class Piece:
                 # The move lands the piece on a square which is not occupied by a piece owned by the same player
                 # There are other pieces in the way of the move, and the current piece is not a knight
                 if (0 <= row_check <= 7) and (0 <= column_check <= 7) and board[row_check][
-                    column_check].direction != self.direction:
+                    column_check].direction != self.direction and board[row_check][column_check].direction != 2:
                     self.possible_moves.append([row_check, column_check])
         elif "king" in self.name:
-            # CHECK IF NOT IN CHECK/CHECKMATE first AND IF NEXT MOVE WILL LEAD TO CHECK AGAIN
             for move in self.moves:
                 row_check = move[0] + self.position[0]
                 column_check = move[1] + self.position[1]
                 if (0 <= row_check <= 7) and (0 <= column_check <= 7) and board[row_check][
-                    column_check].direction != self.direction:
-                    if not game.is_check([row_check, column_check]):
-                        self.possible_moves.append([row_check, column_check])
+                    column_check].direction != self.direction and board[row_check][column_check].direction != 2:
+                    self.possible_moves.append([row_check, column_check])
 
-        # Check for a free path between the 2 positions DONE
         elif "bishop" in self.name or "rook" in self.name or "queen" in self.name:
             for move_list in self.moves:
                 for move in move_list[1:]:
                     row_check = move[0] + self.position[0]
                     column_check = move[1] + self.position[1]
                     # If the square is on the board and is not empty, the path is blocked by a piece
-                    if (0 <= row_check <= 7) and (0 <= column_check <= 7) and board[row_check][
-                        column_check].direction != 0:
-                        if board[row_check][column_check].direction != self.direction:
+                    if (0 <= row_check <= 7) and (0 <= column_check <= 7) and (board[row_check][
+                        column_check].direction != 0 or board[row_check][column_check].direction == 2):
+                        if board[row_check][column_check].direction != self.direction and board[row_check][column_check].direction != 2:
                             self.possible_moves.append([row_check, column_check])
                         break
                     elif (0 <= row_check <= 7) and (0 <= column_check <= 7) and board[row_check][
                         column_check].direction != self.direction:
                         self.possible_moves.append([row_check, column_check])
+
+        elif "duck" in self.name:
+            for square in self.moves:
+                if board[square[0]][square[1]].direction == 0:
+                    self.possible_moves.append(square)
 
         if highlight:
             for move in self.possible_moves:
@@ -352,6 +338,17 @@ class Piece:
         self.create_bishop_moves()
         self.create_rook_moves(True)
 
+    def create_duck_moves(self):
+        for i in range(8):
+            for j in range(8):
+                self.moves.append([i, j])
+
+
+class Duck(Piece):
+    def __init__(self, name, image, direction):
+        super().__init__(name, image, direction, [-1, -1])
+        self.position = []
+
 
 class Pawn(Piece):
     def __init__(self, name, image, direction, position):
@@ -367,6 +364,7 @@ class Pawn(Piece):
     def create_possible_moves(self, board, highlight):
         for move in self.moves:
             if move == self.moves[0]:
+                # Handle pawn moving 2 squares forward
                 if (self.direction == -1 and self.position[0] == 6) or (self.direction == 1 and self.position[0] == 1):
                     # If the piece hasn't been moved yet
                     row_check = move[0] // 2 + self.position[0]
@@ -383,12 +381,14 @@ class Pawn(Piece):
 
                     self.possible_moves.append([row_check, column_check])
 
+            # Handle taking pieces with pawns
             elif move == self.moves[2] or move == self.moves[3]:
                 row_check = move[0] + self.position[0]
                 column_check = move[1] + self.position[1]
                 if (0 <= row_check <= 7) and (0 <= column_check <= 7) and board[row_check][
-                    column_check].direction != self.direction and board[row_check][column_check].direction != 0:
+                    column_check].direction != self.direction and (board[row_check][column_check].direction != 0 and board[row_check][column_check].direction != 2):
                     self.possible_moves.append([row_check, column_check])
+            # Normal pawn movement
             else:
                 row_check = move[0] + self.position[0]
                 column_check = move[1] + self.position[1]
@@ -403,6 +403,15 @@ class Pawn(Piece):
 
 window = Tk()
 transparent_image = ImageTk.PhotoImage(PILImage.open("Images/transparent_60x60.png"))
+duck_image = ImageTk.PhotoImage(PILImage.open("Images/duck.png").resize((60, 60)))
+
+white_score_label = Label(window, text="White: 0")
+black_score_label = Label(window, text="Black: 0")
+game_message_label = Label(window, text="White, place the duck!")
+white_score_label.grid(row=0, column=0, sticky='w', padx=10)
+game_message_label.grid(row=0, column=1, columnspan=6, sticky='n')
+black_score_label.grid(row=0, column=7, sticky='e', padx=10)
+
 
 game = Game("p1", "p2")
 game.redraw_board(None, False)
