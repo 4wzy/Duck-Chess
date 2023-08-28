@@ -33,11 +33,9 @@ class Game:
             self.client.close()
 
         self.board = []
-        self.board_no_images = []
         self.squares = []
         self.p1 = Player(p1, -1)
         self.p2 = Player(p2, 1)
-        self.winner = 0
         self.create_board()
         self.current_player = self.p1.colour
         global current_player
@@ -60,21 +58,33 @@ class Game:
 
     def send_board_to_server(self):
         before = {"board": self.board, "duck_squares": duck_squares}
-        print(f"Before: {before}")
-        to_send = pickle.dumps({"board": pickle.dumps(self.board), "duck_squares": duck_squares})
-        print(f"To send: {to_send}")
+        # print(f"Before: {before}")
+        to_send = pickle.dumps({"board": pickle.dumps(self.board), "duck_squares": duck_squares, "scores": scores})
+        # print(f"To send: {to_send}")
         self.client.sendall(to_send)
         print(f"15. Current player: {current_player}")
 
     def receive_board_and_turn_from_server(self):
         data_received = pickle.loads(self.client.recv(BUFFER_SIZE))
         if data_received["board"] is not None:
-            self.board = pickle.loads(data_received['board'])
+            self.board = pickle.loads(data_received["board"])
         if data_received["duck_squares"] is not None:
             global duck_squares
             duck_squares = data_received["duck_squares"]
         global current_player
-        current_player = data_received['current_turn']
+        current_player = data_received["current_turn"]
+        global scores
+        if scores != data_received["scores"]:
+            if data_received["scores"]["p1"] - scores["p1"] == 1:
+                winner = "White"
+            elif data_received["scores"]["p2"] - scores["p2"] == 1:
+                winner = "Black"
+
+            game_message_label.config(text=f"{winner} wins!")
+            scores = data_received["scores"]
+            white_score_label.config(text="White: " + str(scores["p1"]))
+            black_score_label.config(text="Black: " + str(scores["p2"]))
+
         # print(f"Current player: {current_player}")
 
     def create_board(self):
@@ -267,7 +277,7 @@ class Game:
 
                                 # Handle if the king has been taken
                                 if "king" in piece.name:
-                                    if piece.direction == -1:
+                                    if piece.direction == 1:
                                         scores["p1"] += 1
                                         white_score_label.config(text="White: " + str(scores["p1"]))
                                         game_message_label.config(text="White wins!")

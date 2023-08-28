@@ -49,16 +49,19 @@ def start_server():
 
             board_data = pickle.loads(board_data)
             # send the board state to the other player
-            other_player_conn.sendall(pickle.dumps({"board": board_data["board"], "current_turn": current_player, "duck_squares": board_data["duck_squares"]}))
+            other_player_conn.sendall(pickle.dumps({"board": board_data["board"], "current_turn": current_player, "duck_squares": board_data["duck_squares"], "scores": board_data["scores"]}))
 
             # Swap the players
             if boards_sent == 2:
-                current_player_conn, other_player_conn = other_player_conn, current_player_conn
-                current_player = 1 if current_player == -1 else -1
-                print("Players swapped")
+                if scores == board_data["scores"]:
+                    current_player_conn, other_player_conn = other_player_conn, current_player_conn
+                    current_player = 1 if current_player == -1 else -1
+                    print("Players swapped")
+                else:
+                    scores = board_data["scores"]
                 boards_sent = 0
-                player1_conn.sendall(pickle.dumps({"board": None, "current_turn": current_player, "duck_squares": board_data["duck_squares"]}))
-                player2_conn.sendall(pickle.dumps({"board": None, "current_turn": current_player, "duck_squares": board_data["duck_squares"]}))
+                player1_conn.sendall(pickle.dumps({"board": None, "current_turn": current_player, "duck_squares": board_data["duck_squares"], "scores": board_data["scores"]}))
+                player2_conn.sendall(pickle.dumps({"board": None, "current_turn": current_player, "duck_squares": board_data["duck_squares"], "scores": board_data["scores"]}))
 
 
     except Exception as e:
