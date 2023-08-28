@@ -1,10 +1,7 @@
-import threading
 from abc import abstractmethod
 from tkinter import *
 from PIL import Image as PILImage
 from PIL import ImageTk
-import socket
-import pickle
 
 current_player = -1
 scores = {"p1": 0, "p2": 0}
@@ -12,86 +9,44 @@ scores = {"p1": 0, "p2": 0}
 squares_clicked_on = []
 piece_moves = []
 duck_squares = []
-IP = "192.168.4.63"
-PORT = 5051
-BUFFER_SIZE = 16384
-piece_images = {}
+en_passant_pawns = []
+
+def switch_turns():
+    global current_player
+    if current_player == -1:
+        current_player = 1
+    else:
+        current_player = -1
 
 
 class Game:
     def __init__(self, p1, p2):
-        self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.client.connect((IP, PORT))
-
-        self.player_assignment = pickle.loads(self.client.recv(BUFFER_SIZE))
-        print(f"You are {self.player_assignment}")
-        window.title(self.player_assignment)
-
-        start_signal = pickle.loads(self.client.recv(BUFFER_SIZE))
-        if start_signal != "Start":
-            print("Error: Did not receive correct start signal")
-            self.client.close()
-
         self.board = []
-        self.board_no_images = []
         self.squares = []
         self.p1 = Player(p1, -1)
         self.p2 = Player(p2, 1)
         self.winner = 0
         self.create_board()
         self.current_player = self.p1.colour
+        global duck_image
         global current_player
         self.duck_turn = False
-        self.duck = Duck("duck", True, 2)
-        self.networking_thread = threading.Thread(target=self.listen_to_server)
-        self.networking_thread.daemon = True
-        self.networking_thread.start()
-
-    def listen_to_server(self):
-        while True:
-            try:
-                self.receive_board_and_turn_from_server()
-                print("Board received ...")
-                window.after(0, self.redraw_board(None, False))
-                print("Updating board")
-            except Exception as e:
-                print(f"Error in listen_to_server: {e}")
-                break
-
-    def send_board_to_server(self):
-        before = {"board": self.board, "duck_squares": duck_squares}
-        print(f"Before: {before}")
-        to_send = pickle.dumps({"board": pickle.dumps(self.board), "duck_squares": duck_squares})
-        print(f"To send: {to_send}")
-        self.client.sendall(to_send)
-        print(f"15. Current player: {current_player}")
-
-    def receive_board_and_turn_from_server(self):
-        data_received = pickle.loads(self.client.recv(BUFFER_SIZE))
-        if data_received["board"] is not None:
-            self.board = pickle.loads(data_received['board'])
-        if data_received["duck_squares"] is not None:
-            global duck_squares
-            duck_squares = data_received["duck_squares"]
-        global current_player
-        current_player = data_received['current_turn']
-        # print(f"Current player: {current_player}")
+        self.duck = Duck("duck", duck_image, 2)
+        # self.create_possible_moves_all_pieces()
 
     def create_board(self):
-        self.board = []
-        self.squares = []
         global transparent_image
         for i in range(8):
             self.board.append([])
             self.squares.append([])
             for j in range(8):
-                self.board[i].append(Piece("None", False, 0, [i, j]))
+                self.board[i].append(Piece("None", None, 0, [i, j]))
                 self.squares[i].append(
                     Button(
                         image=transparent_image,
                         height=60,
                         width=60,
-                        command=lambda i=i, j=j: self.check_move(self.board[i][j].position)
+                        command=lambda i=i, j=j: self.check_move(game.board[i][j].position)
                     ))
                 self.squares[i][j].grid(row=i + 1, column=j)
 
@@ -127,29 +82,25 @@ class Game:
         self.board[square2[0]][square2[1]].position = square2
 
     def make_check_move_command(self, x, y):
-        return lambda: self.check_move(self.board[x][y].position)
-
-    def check_image(self, piece):
-        global piece_images
-        return piece_images[f"{piece.direction}{piece.name}"]
+        return lambda: self.check_move(game.board[x][y].position)
 
     def redraw_board(self, selected_square, highlight):
         global transparent_image
         for i in range(8):
             for j in range(8):
-                if game.board[i][j].image:
+                if game.board[i][j].image is not None:
                     self.squares[i][j].config(
-                        image=self.check_image(self.board[i][j]),
+                        image=game.board[i][j].image,
                         height=60,
                         width=60,
-                        command=lambda i=i, j=j: self.check_move(self.board[i][j].position)
+                        command=lambda i=i, j=j: self.check_move(game.board[i][j].position)
                     )
                 else:
                     self.squares[i][j].config(
                         image=transparent_image,
                         height=60,
                         width=60,
-                        command=lambda i=i, j=j: self.check_move(self.board[i][j].position)
+                        command=lambda i=i, j=j: self.check_move(game.board[i][j].position)
                     )
 
                 # The following code is for hiding the possible moves, which are shown when creating possible moves
@@ -199,6 +150,8 @@ class Game:
                         self.swap_board_squares([y, 7], [y, 5])
                         self.swap_board_squares([y, 4], [y, 6])
                         return True
+
+        print("No castle")
         return False
 
     def game_over(self):
@@ -217,98 +170,107 @@ class Game:
         piece = self.board[position[0]][position[1]]
         print(piece.name)
 
-        print(current_player, self.player_assignment)
-        if int(current_player) == int(self.player_assignment):
+        if piece.direction == current_player or piece.direction == 0 or (
+                piece.direction != current_player and len(squares_clicked_on) == 1):
+            # If the player has clicked of their pieces to select, or has clicked the square to move one of their pieces to
 
-            if piece.direction == current_player or piece.direction == 0 or (
-                    piece.direction != current_player and len(squares_clicked_on) == 1):
-                # If the player has clicked of their pieces to select, or has clicked the square to move one of their pieces to
-                print("1")
-                if not self.duck_turn:
-                    piece.possible_moves = []
-                    piece.create_possible_moves(self.board, True)
+            if not self.duck_turn:
+                piece.possible_moves = []
+                piece.create_possible_moves(self.board, True)
 
-                    if len(squares_clicked_on) == 1 and self.castle(
-                            [squares_clicked_on[0][0], squares_clicked_on[0][1]], [position[0], position[1]]):
-                        # If the player is trying to castle, castle
-                        self.redraw_board(None, False)
-                        self.duck_turn = True
-                    elif len(squares_clicked_on) == 1 and piece.direction == self.board[squares_clicked_on[0][0]][
-                        squares_clicked_on[0][1]].direction:
-                        # If the player has clicked on another piece of theirs after selecting a piece of theirs already
-                        print("2")
-                        self.redraw_board(squares_clicked_on[0], False)
-                        squares_clicked_on = []
-                        piece_moves = []
-                    else:
-                        if len(squares_clicked_on) == 0 and piece.name != "None":
-                            # If the player has clicked on a valid piece of theirs to select
-                            print("3")
-                            squares_clicked_on.append(position)
-                            self.redraw_board(squares_clicked_on[0], True)
-                            piece_moves.append(piece.possible_moves)
-                            print(f"1. {squares_clicked_on}")
-                        elif len(squares_clicked_on) == 1:
-                            # If the player has clicked on a square to move the already selected piece to
-                            if position in piece_moves[0]:
-                                # If the square to move to is a valid move option
-                                print("5")
-                                original_pos = squares_clicked_on[0]
+                if len(squares_clicked_on) == 1 and self.castle(
+                        [squares_clicked_on[0][0], squares_clicked_on[0][1]], [position[0], position[1]]):
+                    # If the player is trying to castle, castle
+                    self.redraw_board(None, False)
+                    self.duck_turn = True
+                elif len(squares_clicked_on) == 1 and piece.direction == self.board[squares_clicked_on[0][0]][
+                    squares_clicked_on[0][1]].direction:
+                    # If the player has clicked on another piece of theirs after selecting a piece of theirs already
+                    self.redraw_board(squares_clicked_on[0], False)
+                    squares_clicked_on = []
+                    piece_moves = []
+                else:
+                    if len(squares_clicked_on) == 0 and piece.name != "None":
+                        # If the player has clicked on a valid piece of theirs to select
+                        squares_clicked_on.append(position)
+                        self.redraw_board(squares_clicked_on[0], True)
+                        piece_moves.append(piece.possible_moves)
+                        print(f"1. {squares_clicked_on}")
+                    elif len(squares_clicked_on) == 1:
+                        # If the player has clicked on a square to move the already selected piece to
 
-                                # Change the piece's position attribute
-                                self.board[original_pos[0]][original_pos[1]].position = position
-                                self.board[original_pos[0]][original_pos[1]].has_moved_yet = True
+                        if position in piece_moves[0]:
+                            # If the square to move to is a valid move option
+                            original_pos = squares_clicked_on[0]
+
+                            # Change the piece's position attribute
+                            self.board[original_pos[0]][original_pos[1]].position = position
+                            self.board[original_pos[0]][original_pos[1]].has_moved_yet = True
+
+                            # For En Passant
+                            global en_passant_pawns
+                            if "pawn" in self.board[original_pos[0]][original_pos[1]].name and position[0] == \
+                                    original_pos[0] + 2 * self.board[original_pos[0]][original_pos[1]].direction:
+                                en_passant_pawns.append([position[0], position[1]])
+
+                            # En Passant only works on the turn after the previous turn, hence the code below
+                            passant_pos = en_passant_pawns[0]
+                            passant_pawn = self.board[en_passant_pawns[0][0]][en_passant_pawns[0][1]]
+                            if len(en_passant_pawns) == 1:
+                                if passant_pawn.direction == current_player * -1:
+                                    en_passant_pawns.clear()
+                            elif len(en_passant_pawns) == 2:
+                                if passant_pawn.direction == current_player * -1:
+                                    en_passant_pawns[0] = en_passant_pawns[1]
+                                    en_passant_pawns.pop()
+
+                            if passant_pos == [position[0] + -1 * current_player, position[1]] and [position[0] + -1 * current_player, position[1]] in self.board[original_pos[0]][original_pos[1]].possible_moves:
+                                self.swap_board_squares([position[0] + -1 * current_player, position[1]], [position[0], position[1]])
+                                # self.swap_board_squares()
+                            else:
 
                                 # Change the location on the board
                                 self.board[position[0]][position[1]] = self.board[original_pos[0]][original_pos[1]]
-                                self.board[original_pos[0]][original_pos[1]] = Piece("None", False, 0,
+                                self.board[original_pos[0]][original_pos[1]] = Piece("None", transparent_image, 0,
                                                                                      [original_pos[0], original_pos[1]])
-                                self.duck_turn = True
+                            self.duck_turn = True
 
-                                # Handle if the king has been taken
-                                if "king" in piece.name:
-                                    if piece.direction == -1:
-                                        scores["p1"] += 1
-                                        white_score_label.config(text="White: " + str(scores["p1"]))
-                                        game_message_label.config(text="White wins!")
-                                    else:
-                                        scores["p2"] += 1
-                                        black_score_label.config(text="Black: " + str(scores["p2"]))
-                                        game_message_label.config(text="Black wins!")
-                                    self.game_over()
+                            if "king" in piece.name:
+                                if piece.direction == -1:
+                                    scores["p1"] += 1
+                                    white_score_label.config(text="White: " + str(scores["p1"]))
+                                    game_message_label.config(text="White wins!")
                                 else:
-                                    if current_player == -1:
-                                        game_message_label.config(text="White, place the duck!")
-                                    else:
-                                        game_message_label.config(text="Black, place the duck!")
-                                self.redraw_board(squares_clicked_on[0], False)
-                                self.send_board_to_server()
+                                    scores["p2"] += 1
+                                    black_score_label.config(text="Black: " + str(scores["p2"]))
+                                    game_message_label.config(text="Black wins!")
+                                self.game_over()
                             else:
-                                # If the player has clicked on an invalid square
-                                self.redraw_board(squares_clicked_on[0], False)
-                                squares_clicked_on = []
-                                piece_moves = []
+                                if current_player == -1:
+                                    game_message_label.config(text="White, place the duck!")
+                                else:
+                                    game_message_label.config(text="Black, place the duck!")
+                            self.redraw_board(squares_clicked_on[0], False)
+            else:
+                if current_player == 1:
+                    game_message_label.config(text="White, make a move!")
                 else:
-                    if current_player == 1:
-                        game_message_label.config(text="White, make a move!")
+                    game_message_label.config(text="Black, make a move!")
+                if piece.name == "None":
+                    self.duck.position = position
+                    if len(duck_squares) == 1:
+                        self.swap_board_squares(position, duck_squares[0])
+                        duck_squares[0] = position
                     else:
-                        game_message_label.config(text="Black, make a move!")
-                    if piece.name == "None":
-                        print("6")
-                        self.duck.position = position
-                        if len(duck_squares) == 1:
-                            self.swap_board_squares(position, duck_squares[0])
-                            duck_squares[0] = position
-                        else:
-                            self.board[position[0]][position[1]] = self.duck
-                        duck_squares.clear()
-                        duck_squares.append([position[0], position[1]])
-                        self.duck_turn = False
+                        self.board[position[0]][position[1]] = self.duck
+                    duck_squares.clear()
+                    duck_squares.append([position[0], position[1]])
+                    self.duck_turn = False
+                    switch_turns()
 
-                        self.redraw_board(None, False)
-                        self.send_board_to_server()
-                        squares_clicked_on = []
-                        piece_moves = []
+                    self.redraw_board(None, False)
+                    squares_clicked_on = []
+                    piece_moves = []
 
 
 # Note: colour is represented by -1 for white, and 1 for black
@@ -317,6 +279,7 @@ class Player:
         self.name = name
         self.colour = colour
         self.pieces = {}
+        # This may be the LEAST efficient and unnecessarily complicated way to set up the pieces, but oh well
         if colour == 1:
             first_row = 0
             second_row = 1
@@ -332,8 +295,6 @@ class Player:
                        "knight2": [first_row, 6], "bishop1": [first_row, 2],
                        "bishop2": [first_row, 5], "queen": [first_row, 3]}
 
-        global piece_images
-        piece_images["2duck"] = ImageTk.PhotoImage(PILImage.open("Images/duck.png").resize((60, 60)))
         for piece_name in piece_names.keys():
             imagepath = f"Images/{colour}"
             position = []
@@ -353,12 +314,11 @@ class Player:
             imagepath += ".png"
 
             image = ImageTk.PhotoImage(PILImage.open(imagepath))
-            piece_images[f"{self.colour}{piece_name}"] = image
 
             if "pawn" in piece_name:
-                self.pieces[piece_name] = (Pawn(piece_name, True, colour, piece_names[piece_name]))
+                self.pieces[piece_name] = (Pawn(piece_name, image, colour, piece_names[piece_name]))
             else:
-                self.pieces[piece_name] = (Piece(piece_name, True, colour, piece_names[piece_name]))
+                self.pieces[piece_name] = (Piece(piece_name, image, colour, piece_names[piece_name]))
 
 
 class Piece:
@@ -538,6 +498,10 @@ class Pawn(Piece):
                     column_check].direction != 2):
                     self.possible_moves.append([row_check, column_check])
 
+                # Check if En Passant is possible
+                global en_passant_pawns
+                if "pawn" in board[self.position[0]][row_check].name and [self.position[0], row_check] in en_passant_pawns:
+                    self.possible_moves.append([row_check, column_check])
             # Normal pawn movement
             else:
                 row_check = move[0] + self.position[0]
@@ -552,7 +516,8 @@ class Pawn(Piece):
 
 
 window = Tk()
-transparent_image = ImageTk.PhotoImage(PILImage.open("Images/transparent_60x60.png"))
+transparent_image = ImageTk.PhotoImage(PILImage.open("multiplayer/Images/transparent_60x60.png"))
+duck_image = ImageTk.PhotoImage(PILImage.open("multiplayer/Images/duck.png").resize((60, 60)))
 
 white_score_label = Label(window, text="White: 0")
 black_score_label = Label(window, text="Black: 0")
