@@ -211,11 +211,31 @@ class Game:
                         return True
         return False
 
+    def debug_print_board(self):
+        print("--- start ---")
+        for row in game.board:
+            for piece in row:
+                print(piece.name, end=" ")
+            print("\n")
+        print("--- end ---")
+
     def game_over(self):
+        self.debug_print_board()
         global current_player
+        global duck_squares
         current_player = -1
+        duck_squares = []
+        self.p1.recreate_pieces()
+        self.p2.recreate_pieces()
+        self.duck_turn = False
+        # Self.duck_turn = False will have to be sent server-side too
+        # There are also server-side issues after a player has won and has tried to make a move
+        # specifically moving the first piece previously moved
         self.create_board()
+        self.duck = Duck("duck", True, 2)
+        self.duck.position = None
         self.redraw_board(None, False)
+        self.debug_print_board()
 
     # Check if a piece can move to a square on the board
     def check_move(self, position):
@@ -333,18 +353,18 @@ class Player:
         else:
             first_row = 7
             second_row = 6
-        piece_names = {"king": [first_row, 4], "pawn1": [second_row, 0],
-                       "pawn2": [second_row, 1], "pawn3": [second_row, 2],
-                       "pawn4": [second_row, 3], "pawn5": [second_row, 4],
-                       "pawn6": [second_row, 5], "pawn7": [second_row, 6],
-                       "pawn8": [second_row, 7], "rook1": [first_row, 0],
-                       "rook2": [first_row, 7], "knight1": [first_row, 1],
-                       "knight2": [first_row, 6], "bishop1": [first_row, 2],
-                       "bishop2": [first_row, 5], "queen": [first_row, 3]}
+        self.piece_names = {"king": [first_row, 4], "pawn1": [second_row, 0],
+                            "pawn2": [second_row, 1], "pawn3": [second_row, 2],
+                            "pawn4": [second_row, 3], "pawn5": [second_row, 4],
+                            "pawn6": [second_row, 5], "pawn7": [second_row, 6],
+                            "pawn8": [second_row, 7], "rook1": [first_row, 0],
+                            "rook2": [first_row, 7], "knight1": [first_row, 1],
+                            "knight2": [first_row, 6], "bishop1": [first_row, 2],
+                            "bishop2": [first_row, 5], "queen": [first_row, 3]}
 
         global piece_images
         piece_images["2duck"] = ImageTk.PhotoImage(PILImage.open("Images/duck.png").resize((60, 60)))
-        for piece_name in piece_names.keys():
+        for piece_name in self.piece_names.keys():
             imagepath = f"Images/{colour}"
             position = []
 
@@ -366,9 +386,16 @@ class Player:
             piece_images[f"{self.colour}{piece_name}"] = image
 
             if "pawn" in piece_name:
-                self.pieces[piece_name] = (Pawn(piece_name, True, colour, piece_names[piece_name]))
+                self.pieces[piece_name] = (Pawn(piece_name, True, colour, self.piece_names[piece_name]))
             else:
-                self.pieces[piece_name] = (Piece(piece_name, True, colour, piece_names[piece_name]))
+                self.pieces[piece_name] = (Piece(piece_name, True, colour, self.piece_names[piece_name]))
+
+    def recreate_pieces(self):
+        for piece_name in self.piece_names.keys():
+            if "pawn" in piece_name:
+                self.pieces[piece_name] = (Pawn(piece_name, True, self.colour, self.piece_names[piece_name]))
+            else:
+                self.pieces[piece_name] = (Piece(piece_name, True, self.colour, self.piece_names[piece_name]))
 
 
 class Piece:
