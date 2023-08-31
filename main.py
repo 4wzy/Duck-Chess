@@ -45,13 +45,34 @@ class Game:
         self.p1 = Player(p1, -1)
         self.p2 = Player(p2, 1)
         self.create_board()
-        self.current_player = self.p1.colour
         global current_player
         self.duck_turn = False
         self.duck = Duck("duck", True, 2)
         self.networking_thread = threading.Thread(target=self.listen_to_server)
         self.networking_thread.daemon = True
         self.networking_thread.start()
+
+    def initialise_game(self):
+        global current_player, squares_clicked_on, piece_moves, duck_squares, game_is_over
+        current_player = -1
+        squares_clicked_on = []
+        piece_moves = []
+        duck_squares = []
+        game_is_over = False
+
+        self.board = []
+        self.squares = []
+        self.duck_turn = False
+
+        self.p1.recreate_pieces()
+        self.p2.recreate_pieces()
+        self.create_board()
+
+        if not self.networking_thread.is_alive():
+            self.networking_thread = threading.Thread(target=self.listen_to_server)
+            self.networking_thread.daemon = True
+            self.networking_thread.start()
+        self.redraw_board(None, False)
 
     def check_image(self, piece):
         global piece_images
@@ -92,6 +113,7 @@ class Game:
         current_player = data_received["current_turn"]
         global scores
         if scores != data_received["scores"]:
+            print("Scores unequal!")
             if data_received["scores"]["p1"] - scores["p1"] == 1:
                 winner = "White"
             elif data_received["scores"]["p2"] - scores["p2"] == 1:
@@ -99,8 +121,11 @@ class Game:
 
             game_message_label.config(text=f"{winner} wins!")
             scores = data_received["scores"]
+            white_score_label.config(text="White: " + str(scores["p1"]))
+            black_score_label.config(text="Black: " + str(scores["p2"]))
             global game_is_over
             game_is_over = True
+            self.initialise_game()
         # print(f"Current player: {current_player}")
 
     def create_board(self):
@@ -292,14 +317,18 @@ class Game:
                                 if "king" in piece.name:
                                     if piece.direction == 1:
                                         scores["p1"] += 1
+                                        white_score_label.config(text="White: " + str(scores["p1"]))
                                         game_message_label.config(text="White wins!")
                                     else:
                                         scores["p2"] += 1
+                                        black_score_label.config(text="Black: " + str(scores["p2"]))
                                         game_message_label.config(text="Black wins!")
                                     self.redraw_board(None, False)
                                     game_is_over = True
-                                    window.after(3000, window.destroy())
-                                self.redraw_board(squares_clicked_on[0], False)
+                                if game_is_over:
+                                    self.initialise_game()
+                                else:
+                                    self.redraw_board(squares_clicked_on[0], False)
                                 self.send_board_to_server()
                             else:
                                 # If the player has clicked on an invalid square
@@ -374,12 +403,12 @@ class Player:
             else:
                 self.pieces[piece_name] = (Piece(piece_name, True, colour, self.piece_names[piece_name]))
 
-    # def recreate_pieces(self):
-    #     for piece_name in self.piece_names.keys():
-    #         if "pawn" in piece_name:
-    #             self.pieces[piece_name] = (Pawn(piece_name, True, self.colour, self.piece_names[piece_name]))
-    #         else:
-    #             self.pieces[piece_name] = (Piece(piece_name, True, self.colour, self.piece_names[piece_name]))
+    def recreate_pieces(self):
+        for piece_name in self.piece_names.keys():
+            if "pawn" in piece_name:
+                self.pieces[piece_name] = (Pawn(piece_name, True, self.colour, self.piece_names[piece_name]))
+            else:
+                self.pieces[piece_name] = (Piece(piece_name, True, self.colour, self.piece_names[piece_name]))
 
 
 class Piece:
@@ -575,6 +604,10 @@ class Pawn(Piece):
 window = Tk()
 transparent_image = ImageTk.PhotoImage(PILImage.open("Images/transparent_60x60.png"))
 
+white_score_label = Label(window, text="White: 0")
+black_score_label = Label(window, text="Black: 0")
+white_score_label.grid(row=0, column=0, sticky='w', padx=10)
+black_score_label.grid(row=0, column=7, sticky='e', padx=10)
 game_message_label = Label(window, text="White, make a move!")
 game_message_label.grid(row=0, column=1, columnspan=6, sticky='n')
 

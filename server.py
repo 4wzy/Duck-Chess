@@ -6,6 +6,12 @@ IP = "192.168.4.63"
 PORT = 5051
 BUFFER_SIZE = 16384
 
+def initialise_server_game(player1_conn, player2_conn):
+    current_player_conn = player1_conn
+    other_player_conn = player2_conn
+    boards_sent = 0
+    current_player = -1
+    return current_player_conn, other_player_conn, boards_sent, current_player
 
 def start_server():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -48,6 +54,11 @@ def start_server():
             print(pickle.loads(board_data))
 
             board_data = pickle.loads(board_data)
+
+            if scores != board_data["scores"]:  # Game over detected
+                current_player_conn, other_player_conn, boards_sent, current_player = initialise_server_game(player1_conn, player2_conn)
+                print("reset")
+                scores = board_data["scores"]
             # send the board state to the other player
             other_player_conn.sendall(pickle.dumps({"board": board_data["board"], "current_turn": current_player,
                                                     "duck_squares": board_data["duck_squares"],
@@ -55,12 +66,9 @@ def start_server():
 
             # Swap the players
             if boards_sent == 2:
-                if scores == board_data["scores"]:
-                    current_player_conn, other_player_conn = other_player_conn, current_player_conn
-                    current_player = 1 if current_player == -1 else -1
-                    print("Players swapped")
-                else:
-                    scores = board_data["scores"]
+                current_player_conn, other_player_conn = other_player_conn, current_player_conn
+                current_player = 1 if current_player == -1 else -1
+                print("Players swapped")
                 boards_sent = 0
                 player1_conn.sendall(pickle.dumps(
                     {"board": None, "current_turn": current_player, "duck_squares": board_data["duck_squares"],
