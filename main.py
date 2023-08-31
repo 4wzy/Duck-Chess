@@ -52,7 +52,6 @@ class Game:
 
     def initialise_game(self):
         global current_player, squares_clicked_on, piece_moves, duck_squares, game_is_over
-        print("Game initialised")
         current_player = -1
         squares_clicked_on = []
         piece_moves = []
@@ -80,19 +79,10 @@ class Game:
     def listen_to_server(self):
         while True:
             self.receive_board_and_turn_from_server()
-            print("Board received ...")
-            print(f"1. Current player: {current_player}")
-            print(f"1. Player assignment: {self.player_assignment}")
             window.after(0, self.redraw_board(None, False))
-            print("Updating board")
 
     def send_board_to_server(self):
-        print(f"2. Current player: {current_player}")
-        print(f"2. Player assignment: {self.player_assignment}")
-        before = {"board": self.board, "duck_squares": duck_squares}
-        # print(f"Before: {before}")
         to_send = pickle.dumps({"board": pickle.dumps(self.board), "duck_squares": duck_squares, "scores": scores})
-        # print(f"To send: {to_send}")
         self.client.sendall(to_send)
 
     def receive_board_and_turn_from_server(self):
@@ -112,7 +102,6 @@ class Game:
         current_player = data_received["current_turn"]
         global scores
         if scores != data_received["scores"]:
-            print("Scores unequal!")
             if data_received["scores"]["p1"] - scores["p1"] == 1:
                 winner = "White"
             elif data_received["scores"]["p2"] - scores["p2"] == 1:
@@ -125,7 +114,6 @@ class Game:
             global game_is_over
             game_is_over = True
             self.initialise_game()
-        # print(f"Current player: {current_player}")
 
     def create_board(self):
         self.board = []
@@ -259,18 +247,14 @@ class Game:
         global transparent_image
         global current_player
         global piece_moves
-        print(position)
         piece = self.board[position[0]][position[1]]
-        print(piece.name)
 
-        print(current_player, self.player_assignment)
         global game_is_over
         if int(current_player) == int(self.player_assignment) and not game_is_over:
 
             if piece.direction == current_player or piece.direction == 0 or (
                     piece.direction != current_player and len(squares_clicked_on) == 1):
                 # If the player has clicked of their pieces to select, or has clicked the square to move one of their pieces to
-                print("1")
                 if not self.duck_turn:
                     piece.possible_moves = []
                     piece.create_possible_moves(self.board, True)
@@ -280,26 +264,26 @@ class Game:
                         # If the player is trying to castle, castle
                         self.redraw_board(None, False)
                         self.duck_turn = True
+                        squares_clicked_on = []
+                        piece_moves = []
+                        self.send_board_to_server()
+                        self.redraw_board(None, False)
                     elif len(squares_clicked_on) == 1 and piece.direction == self.board[squares_clicked_on[0][0]][
                         squares_clicked_on[0][1]].direction:
                         # If the player has clicked on another piece of theirs after selecting a piece of theirs already
-                        print("2")
                         self.redraw_board(squares_clicked_on[0], False)
                         squares_clicked_on = []
                         piece_moves = []
                     else:
                         if len(squares_clicked_on) == 0 and piece.name != "None":
                             # If the player has clicked on a valid piece of theirs to select
-                            print("3")
                             squares_clicked_on.append(position)
                             self.redraw_board(squares_clicked_on[0], True)
                             piece_moves.append(piece.possible_moves)
-                            print(f"1. {squares_clicked_on}")
                         elif len(squares_clicked_on) == 1:
                             # If the player has clicked on a square to move the already selected piece to
                             if position in piece_moves[0]:
                                 # If the square to move to is a valid move option
-                                print("5")
                                 original_pos = squares_clicked_on[0]
 
                                 # Change the piece's position attribute
@@ -318,7 +302,6 @@ class Game:
                                 if "pawn" in self.board[position[0]][position[1]].name and position[0] == last_row:
                                     self.board[position[0]][position[1]] = Piece("queen1", True, current_player,
                                                                                  [position[0], position[1]])
-                                    print(f"PAWN STUFF: {self.board[position[0]][position[1]]}")
 
                                 self.duck_turn = True
 
@@ -346,7 +329,6 @@ class Game:
                                 piece_moves = []
                 else:
                     if piece.name == "None":
-                        print("6")
                         self.duck.position = position
                         if len(duck_squares) == 1:
                             self.swap_board_squares(position, duck_squares[0])
@@ -388,7 +370,6 @@ class Player:
         piece_images["2duck"] = ImageTk.PhotoImage(PILImage.open("Images/2duck.png").resize((60, 60)))
         for piece_name in self.piece_names.keys():
             imagepath = f"Images/{colour}"
-            position = []
 
             if "pawn" in piece_name:
                 imagepath += "pawn"
@@ -615,10 +596,10 @@ transparent_image = ImageTk.PhotoImage(PILImage.open("Images/transparent_60x60.p
 
 white_score_label = Label(window, text="White: 0")
 black_score_label = Label(window, text="Black: 0")
-white_score_label.grid(row=0, column=0, sticky='w', padx=10)
-black_score_label.grid(row=0, column=7, sticky='e', padx=10)
+white_score_label.grid(row=0, column=0, sticky="w", padx=10)
+black_score_label.grid(row=0, column=7, sticky="e", padx=10)
 game_message_label = Label(window, text="White, make a move!")
-game_message_label.grid(row=0, column=1, columnspan=6, sticky='n')
+game_message_label.grid(row=0, column=1, columnspan=6, sticky="n")
 
 game = Game("p1", "p2")
 game.redraw_board(None, False)
