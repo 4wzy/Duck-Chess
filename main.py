@@ -19,8 +19,6 @@ piece_images = {}
 game_is_over = False
 
 
-# WORK ON LINE 328
-
 def resize_image(image, size):
     image = image.resize(size)
     return image
@@ -143,7 +141,7 @@ class Game:
                         image=transparent_image,
                         height=60,
                         width=60,
-                        command=lambda i=i, j=j: self.check_move(self.board[i][j].position)
+                        command=lambda x=i, y=j: self.make_check_move_command(x, y)
                     ))
                 self.squares[i][j].grid(row=i + 1, column=j, sticky="nsew")
 
@@ -255,21 +253,6 @@ class Game:
                         return True
         return False
 
-    def create_possible_moves_all_pieces(self):
-        global current_player
-        possible_moves = []
-        print(f"create: {possible_moves}")
-        if current_player == -1:
-            for piece in self.p1.pieces.values():
-                piece.create_possible_moves(self.board, False)
-                possible_moves.extend(piece.possible_moves)
-        else:
-            for piece in self.p2.pieces.values():
-                piece.create_possible_moves(self.board, False)
-                possible_moves.extend(piece.possible_moves)
-
-        return possible_moves
-
     # Check if a piece can move to a square on the board
     def check_move(self, position):
         global squares_clicked_on
@@ -333,7 +316,8 @@ class Game:
                                 if current_player == 1:
                                     last_row = 7
                                 if "pawn" in self.board[position[0]][position[1]].name and position[0] == last_row:
-                                    self.board[position[0]][position[1]] = Piece("queen1", True, current_player, [position[0], position[1]])
+                                    self.board[position[0]][position[1]] = Piece("queen1", True, current_player,
+                                                                                 [position[0], position[1]])
                                     print(f"PAWN STUFF: {self.board[position[0]][position[1]]}")
 
                                 self.duck_turn = True
@@ -372,20 +356,6 @@ class Game:
                         duck_squares.clear()
                         duck_squares.append([position[0], position[1]])
                         self.duck_turn = False
-
-                        # Handle if the king is in stalemate (win condition)
-                        # stalemate can only be achieved by the duck being the last piece moved
-                        possible_moves = self.create_possible_moves_all_pieces()
-                        print(f"possible moves: {possible_moves}")
-                        if len(possible_moves) == 0:
-                            if current_player == -1:
-                                scores["p1"] += 1
-                                white_score_label.config(text="White: " + str(scores["p1"]))
-                                game_message_label.config(text="White wins by stalemate!")
-                            else:
-                                scores["p2"] += 1
-                                black_score_label.config(text="Black: " + str(scores["p2"]))
-                                game_message_label.config(text="Black wins by stalemate!")
 
                         self.redraw_board(None, False)
                         self.send_board_to_server()
