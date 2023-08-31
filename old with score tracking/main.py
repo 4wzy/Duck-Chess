@@ -37,7 +37,6 @@ class Game:
         self.p1 = Player(p1, -1)
         self.p2 = Player(p2, 1)
         self.create_board()
-        self.current_player = self.p1.colour
         global current_player
         self.duck_turn = False
         self.duck = Duck("duck", True, 2)
@@ -62,39 +61,48 @@ class Game:
     def send_board_to_server(self):
         print(f"2. Current player: {current_player}")
         print(f"2. Player assignment: {self.player_assignment}")
-        # before = {"board": self.board, "duck_squares": duck_squares}
-        # print(f"Before: {before}")
-        to_send = pickle.dumps({"board": pickle.dumps(self.board), "duck_squares": duck_squares, "scores": scores, "game_over": self.game_is_over})
-        # print(f"To send: {to_send}")
-        self.client.sendall(to_send)
-        if self.game_is_over:
-            print("self.game_is_over = True")
-            self.game_is_over = False
+        self.client.sendall(pickle.dumps(["board", pickle.dumps(self.board)]))
 
     def receive_board_and_turn_from_server(self):
-        data_received = pickle.loads(self.client.recv(BUFFER_SIZE))
-        if data_received["board"] is not None:
-            self.board = pickle.loads(data_received["board"])
-        if data_received["duck_squares"] is not None:
-            global duck_squares
-            duck_squares = data_received["duck_squares"]
+        global duck_squares
         global current_player
-        current_player = data_received["current_turn"]
         global scores
-        if scores != data_received["scores"]:
-            if data_received["scores"]["p1"] - scores["p1"] == 1:
+        data_received = pickle.loads(self.client.recv(BUFFER_SIZE))
+        print(data_received)
+        if data_received[0] == "board":
+            if self.board != data_received[1]:
+                self.board = data_received[1]
+        elif data_received[0] == "duck_squares":
+            duck_squares = data_received[1]
+        elif data_received[0] == "current_player":
+            current_player = data_received[1]
+        elif data_received[0] == "scores":
+            if data_received[1]["p1"] - scores["p1"] == 1:
                 winner = "White"
-            elif data_received["scores"]["p2"] - scores["p2"] == 1:
+            elif data_received[1]["p2"] - scores["p2"] == 1:
                 winner = "Black"
 
             game_message_label.config(text=f"{winner} wins!")
-            scores = data_received["scores"]
+            scores = data_received[1]
             white_score_label.config(text="White: " + str(scores["p1"]))
             black_score_label.config(text="Black: " + str(scores["p2"]))
-            self.game_is_over = True
-            self.game_over()
 
-        # print(f"Current player: {current_player}")
+        elif data_received[0] == "game_over":
+            self.game_is_over = data_received[1]
+            if self.game_is_over:
+                self.game_over()
+        elif data_received[0] == "get_board":
+            self.send_board_to_server()
+        elif data_received[0] == "swap_players":
+            self.client.sendall(pickle.dumps(["swap_players"]))
+        elif data_received[0] == "get_duck_squares":
+            self.client.sendall(pickle.dumps(["duck_squares", duck_squares]))
+        elif data_received[0] == "get_current_turn":
+            self.client.sendall(pickle.dumps(["current_player", current_player]))
+        elif data_received[0] == "get_scores":
+            self.client.sendall(pickle.dumps(["scores", scores]))
+        elif data_received[0] == "get_game_over":
+            self.client.sendall(pickle.dumps(["game_over", self.game_is_over]))
 
     def create_board(self):
         self.board = []
@@ -240,6 +248,7 @@ class Game:
         global current_player
         global duck_squares
         global squares_clicked_on
+        global scores
         current_player = -1
         duck_squares = []
         squares_clicked_on = []
@@ -249,8 +258,9 @@ class Game:
         self.duck = Duck("duck", True, 2)
         self.duck.position = None
         self.create_board()
-        self.game_is_over = True
         self.send_board_to_server()
+        self.client.sendall(pickle.dumps(["scores", scores]))
+        self.game_is_over = False
         self.redraw_board(None, False)
 
     # Check if a piece can move to a square on the board
@@ -337,6 +347,7 @@ class Game:
                                     # self.redraw_board(squares_clicked_on[0], False)
                                     self.redraw_board(None, False)
                                     self.send_board_to_server()
+                                    self.client.sendall(pickle.dumps(["game_over", True]))
                             else:
                                 # If the player has clicked on an invalid square
                                 self.redraw_board(squares_clicked_on[0], False)
@@ -362,6 +373,7 @@ class Game:
 
                         self.redraw_board(None, False)
                         self.send_board_to_server()
+                        self.client.sendall(pickle.dumps(["swap_players"]))
                         squares_clicked_on = []
                         piece_moves = []
 

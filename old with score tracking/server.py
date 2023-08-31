@@ -40,56 +40,51 @@ def start_server():
     scores = {"p1": 0, "p2": 0}
 
     try:
-        print(colored("1", "green"))
         while True:
-            print(colored("2", "green"))
             # receive the board state from the current player
             board_data = current_player_conn.recv(BUFFER_SIZE)
             if not board_data:
                 print("Player disconnected.")
                 break
-            print(colored("3", "green"))
-            boards_sent += 1
-            print(f"boards sent: {boards_sent}. Current player: {current_player}. Current conn: {current_player_conn}")
+            print(f"Current player: {current_player}. Current conn: {current_player_conn}")
             # print(board_data)
             # print(pickle.loads(board_data))
 
             board_data = pickle.loads(board_data)
+            print(board_data)
             # send the board state to the other player
-            if board_data["game_over"]:
+            if board_data[0] == "game_over":
                 current_player = -1
-                print(colored("Game over", "red"))
-            other_player_conn.sendall(pickle.dumps({"board": board_data["board"], "current_turn": current_player, "duck_squares": board_data["duck_squares"], "scores": board_data["scores"]}))
+
+            # Receive the board from the current player
+            current_player_conn.sendall(pickle.dumps(["get_board"]))
+            received_board = pickle.loads(current_player_conn.recv(BUFFER_SIZE))
+
+            # Receive the duck_squares from the current player
+            current_player_conn.sendall(pickle.dumps(["get_duck_squares"]))
+            received_duck_squares = pickle.loads(current_player_conn.recv(BUFFER_SIZE))
+
+            # Now send them to the other player
+            other_player_conn.sendall(pickle.dumps(["board", received_board]))
+            other_player_conn.sendall(pickle.dumps(["duck_squares", received_duck_squares]))
+
+            other_player_conn.sendall(pickle.dumps(["current_player", current_player]))
+
+            scores = current_player_conn.sendall(pickle.dumps(["get_scores"]))
+            other_player_conn.sendall(pickle.dumps(["scores", scores]))
 
             # Swap the players
-            if boards_sent == 2:
-                print(colored("4", "green"))
-                if scores == board_data["scores"]:
-                    current_player_conn, other_player_conn = other_player_conn, current_player_conn
-                    current_player = 1 if current_player == -1 else -1
-                    print(f"Old scores: {scores}")
-                    print(f"New scores: {scores}")
-                    print("Players swapped")
-                else:
-                    print(colored("5", "green"))
-                    print(f"O Scores: {scores}")
-                    scores = board_data["scores"]
-                    print(f"N Scores: {scores}")
-                boards_sent = 0
+            if board_data[0] == "swap_players":
+                current_player_conn, other_player_conn = other_player_conn, current_player_conn
+                current_player = 1 if current_player == -1 else -1
+                print(f"Scores: {scores}")
+                print("Players swapped")
 
-            if board_data["game_over"]:
-                boards_sent = 0
-                board_data["game_over"] = False
-                scores = board_data["scores"]
+            if board_data[0] == "game_over":
+                other_player_conn.sendall(pickle.dumps(["game_over", True]))
                 current_player = -1
-                print(colored("6 Game over.", "red"))
-
-            player1_conn.sendall(pickle.dumps({"board": None, "current_turn": current_player, "duck_squares": board_data["duck_squares"], "scores": board_data["scores"]}))
-            player2_conn.sendall(pickle.dumps({"board": None, "current_turn": current_player, "duck_squares": board_data["duck_squares"], "scores": board_data["scores"]}))
+                other_player_conn.sendall(pickle.dumps(["current_player", -1]))
             print("Boards sent...")
-
-
-
 
     except Exception as e:
         print("An error has occurred or a player has disconnected")

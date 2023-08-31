@@ -49,7 +49,9 @@ def start_server():
 
             board_data = pickle.loads(board_data)
             # send the board state to the other player
-            other_player_conn.sendall(pickle.dumps({"board": board_data["board"], "current_turn": current_player, "duck_squares": board_data["duck_squares"], "scores": board_data["scores"]}))
+            other_player_conn.sendall(pickle.dumps({"board": board_data["board"], "current_turn": current_player,
+                                                    "duck_squares": board_data["duck_squares"],
+                                                    "scores": board_data["scores"]}))
 
             # Swap the players
             if boards_sent == 2:
@@ -60,17 +62,21 @@ def start_server():
                 else:
                     scores = board_data["scores"]
                 boards_sent = 0
-                player1_conn.sendall(pickle.dumps({"board": None, "current_turn": current_player, "duck_squares": board_data["duck_squares"], "scores": board_data["scores"]}))
-                player2_conn.sendall(pickle.dumps({"board": None, "current_turn": current_player, "duck_squares": board_data["duck_squares"], "scores": board_data["scores"]}))
-
+                player1_conn.sendall(pickle.dumps(
+                    {"board": None, "current_turn": current_player, "duck_squares": board_data["duck_squares"],
+                     "scores": board_data["scores"]}))
+                player2_conn.sendall(pickle.dumps(
+                    {"board": None, "current_turn": current_player, "duck_squares": board_data["duck_squares"],
+                     "scores": board_data["scores"]}))
 
     except Exception as e:
+        print(e)
         print("An error has occurred or a player has disconnected")
-        print(f"Exception: {e}")
 
     player1_conn.close()
     player2_conn.close()
     server.close()
+    print("Closed")
 
 
 if __name__ == "__main__":

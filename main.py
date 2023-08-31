@@ -17,11 +17,14 @@ PORT = 5051
 BUFFER_SIZE = 16384
 piece_images = {}
 game_is_over = False
+
+
 # last_update_size = (0, 0)
 
 def resize_image(image, size):
     image = image.resize(size)
     return image
+
 
 class Game:
     def __init__(self, p1, p2):
@@ -50,41 +53,18 @@ class Game:
         self.networking_thread.daemon = True
         self.networking_thread.start()
 
-    # Method to update button images
-    # def update_images(self, event=None):
-    #     global last_update_size
-    #
-    #     new_size = (event.width // 8, event.height // 8)
-    #
-    #     # Skip frequent resizes: Only update if the size changes significantly
-    #     if abs(last_update_size[0] - new_size[0]) < 10 and abs(last_update_size[1] - new_size[1]) < 10:
-    #         return
-    #
-    #     last_update_size = new_size
-    #
-    #     for i in range(8):
-    #         for j in range(8):
-    #             if self.board[i][j].image:
-    #                 image = f"{self.board[i][j].direction}{self.board[i][j].name}"
-    #                 piece_images[f"{image}"] = ImageTk.PhotoImage(PILImage.open(f"Images/{image[:-1]}.png").resize((new_size[0], new_size[1])))
-    #                 self.squares[i][j].config(image=piece_images[f"{image}"])
-
     def check_image(self, piece):
         global piece_images
         return piece_images[f"{piece.direction}{piece.name}"]
 
     def listen_to_server(self):
         while True:
-            try:
-                self.receive_board_and_turn_from_server()
-                print("Board received ...")
-                print(f"1. Current player: {current_player}")
-                print(f"1. Player assignment: {self.player_assignment}")
-                window.after(0, self.redraw_board(None, False))
-                print("Updating board")
-            except Exception as e:
-                print(f"Error in listen_to_server: {e}")
-                break
+            self.receive_board_and_turn_from_server()
+            print("Board received ...")
+            print(f"1. Current player: {current_player}")
+            print(f"1. Player assignment: {self.player_assignment}")
+            window.after(0, self.redraw_board(None, False))
+            print("Updating board")
 
     def send_board_to_server(self):
         print(f"2. Current player: {current_player}")
@@ -96,7 +76,13 @@ class Game:
         self.client.sendall(to_send)
 
     def receive_board_and_turn_from_server(self):
-        data_received = pickle.loads(self.client.recv(BUFFER_SIZE))
+        try:
+            data_received = pickle.loads(self.client.recv(BUFFER_SIZE))
+        except (ConnectionResetError, BrokenPipeError, EOFError):
+            print("Connection closed by server")
+            window.quit()
+            exit()
+
         if data_received["board"] is not None:
             self.board = pickle.loads(data_received["board"])
         if data_received["duck_squares"] is not None:
@@ -113,7 +99,8 @@ class Game:
 
             game_message_label.config(text=f"{winner} wins!")
             scores = data_received["scores"]
-
+            global game_is_over
+            game_is_over = True
         # print(f"Current player: {current_player}")
 
     def create_board(self):
@@ -170,7 +157,6 @@ class Game:
 
     def redraw_board(self, selected_square, highlight):
         global transparent_image
-        global transparent_image_dark
         for i in range(8):
             for j in range(8):
                 if game.board[i][j].image:
@@ -310,8 +296,9 @@ class Game:
                                     else:
                                         scores["p2"] += 1
                                         game_message_label.config(text="Black wins!")
-                                    self.redraw_board(None, False, True)
+                                    self.redraw_board(None, False)
                                     game_is_over = True
+                                    window.after(3000, window.destroy())
                                 self.redraw_board(squares_clicked_on[0], False)
                                 self.send_board_to_server()
                             else:
@@ -599,5 +586,4 @@ for i in range(8):
     window.columnconfigure(i, weight=1, minsize=50)
     window.rowconfigure(i, weight=1, minsize=50)
 
-window.bind('<Configure>', game.update_images)
 window.mainloop()
