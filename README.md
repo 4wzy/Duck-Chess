@@ -1,5 +1,5 @@
 # Duck Chess
-#### Video Demo:  <URL HERE>
+#### Video Demo:  https://youtu.be/BKBkr60pBKk
 #### Description:
 Duck chess is a variant of chess where players make a normal chess move but then have to place down a duck piece immediately after.
 The game is built in Python, using Tkinter for the graphical user interface, sockets for networking (with the help of pickles for data serialisation), and threading for managing many operations at the same time while ensuring that the GUI is updated as needed without interruption. 
