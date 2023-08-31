@@ -19,7 +19,7 @@ piece_images = {}
 game_is_over = False
 
 
-# last_update_size = (0, 0)
+# WORK ON LINE 328
 
 def resize_image(image, size):
     image = image.resize(size)
@@ -255,13 +255,28 @@ class Game:
                         return True
         return False
 
+    def create_possible_moves_all_pieces(self):
+        global current_player
+        possible_moves = []
+        print(f"create: {possible_moves}")
+        if current_player == -1:
+            for piece in self.p1.pieces.values():
+                piece.create_possible_moves(self.board, False)
+                possible_moves.extend(piece.possible_moves)
+        else:
+            for piece in self.p2.pieces.values():
+                piece.create_possible_moves(self.board, False)
+                possible_moves.extend(piece.possible_moves)
+
+        return possible_moves
+
     # Check if a piece can move to a square on the board
     def check_move(self, position):
         global squares_clicked_on
         global transparent_image
         global current_player
         global piece_moves
-        # print(position)
+        print(position)
         piece = self.board[position[0]][position[1]]
         print(piece.name)
 
@@ -323,7 +338,7 @@ class Game:
 
                                 self.duck_turn = True
 
-                                # Handle if the king has been taken (win condition)
+                                # Handle if the opposing king has been taken (win condition)
                                 if "king" in piece.name:
                                     if piece.direction == 1:
                                         scores["p1"] += 1
@@ -357,6 +372,20 @@ class Game:
                         duck_squares.clear()
                         duck_squares.append([position[0], position[1]])
                         self.duck_turn = False
+
+                        # Handle if the king is in stalemate (win condition)
+                        # stalemate can only be achieved by the duck being the last piece moved
+                        possible_moves = self.create_possible_moves_all_pieces()
+                        print(f"possible moves: {possible_moves}")
+                        if len(possible_moves) == 0:
+                            if current_player == -1:
+                                scores["p1"] += 1
+                                white_score_label.config(text="White: " + str(scores["p1"]))
+                                game_message_label.config(text="White wins by stalemate!")
+                            else:
+                                scores["p2"] += 1
+                                black_score_label.config(text="Black: " + str(scores["p2"]))
+                                game_message_label.config(text="Black wins by stalemate!")
 
                         self.redraw_board(None, False)
                         self.send_board_to_server()
