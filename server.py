@@ -2,9 +2,9 @@ import socket
 import pickle
 import threading
 
-IP = "192.168.4.63"
+IP = "127.0.0.1"
 PORT = 5051
-BUFFER_SIZE = 16384
+BUFFER_SIZE = 12000
 
 def initialise_server_game(player1_conn, player2_conn):
     current_player_conn = player1_conn

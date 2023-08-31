@@ -12,9 +12,9 @@ scores = {"p1": 0, "p2": 0}
 squares_clicked_on = []
 piece_moves = []
 duck_squares = []
-IP = "192.168.4.63"
+IP = "127.0.0.1"
 PORT = 5051
-BUFFER_SIZE = 16384
+BUFFER_SIZE = 12000
 piece_images = {}
 game_is_over = False
 
