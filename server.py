@@ -50,7 +50,8 @@ def start_server():
                 break
             boards_sent += 1
             print(f"boards sent: {boards_sent}. Current player: {current_player}. Current conn: {current_player_conn}")
-            print(board_data)
+            print(f"Current conn: {current_player_conn}, other conn: {other_player_conn}")
+            # print(board_data)
             print(pickle.loads(board_data))
 
             board_data = pickle.loads(board_data)
@@ -59,6 +60,9 @@ def start_server():
                 current_player_conn, other_player_conn, boards_sent, current_player = initialise_server_game(player1_conn, player2_conn)
                 print("reset")
                 scores = board_data["scores"]
+                current_player_conn.sendall(pickle.dumps({"board": board_data["board"], "current_turn": current_player,
+                                                    "duck_squares": board_data["duck_squares"],
+                                                    "scores": board_data["scores"]}))
             # send the board state to the other player
             other_player_conn.sendall(pickle.dumps({"board": board_data["board"], "current_turn": current_player,
                                                     "duck_squares": board_data["duck_squares"],

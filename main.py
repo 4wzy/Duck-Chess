@@ -54,6 +54,7 @@ class Game:
 
     def initialise_game(self):
         global current_player, squares_clicked_on, piece_moves, duck_squares, game_is_over
+        print("Game initialised")
         current_player = -1
         squares_clicked_on = []
         piece_moves = []
@@ -311,9 +312,18 @@ class Game:
                                 self.board[position[0]][position[1]] = self.board[original_pos[0]][original_pos[1]]
                                 self.board[original_pos[0]][original_pos[1]] = Piece("None", False, 0,
                                                                                      [original_pos[0], original_pos[1]])
+
+                                # Check if pawn promotion is valid
+                                last_row = 0
+                                if current_player == 1:
+                                    last_row = 7
+                                if "pawn" in self.board[position[0]][position[1]].name and position[0] == last_row:
+                                    self.board[position[0]][position[1]] = Piece("queen1", True, current_player, [position[0], position[1]])
+                                    print(f"PAWN STUFF: {self.board[position[0]][position[1]]}")
+
                                 self.duck_turn = True
 
-                                # Handle if the king has been taken
+                                # Handle if the king has been taken (win condition)
                                 if "king" in piece.name:
                                     if piece.direction == 1:
                                         scores["p1"] += 1
