@@ -16,7 +16,12 @@ IP = "192.168.4.63"
 PORT = 5051
 BUFFER_SIZE = 16384
 piece_images = {}
+game_is_over = False
+# last_update_size = (0, 0)
 
+def resize_image(image, size):
+    image = image.resize(size)
+    return image
 
 class Game:
     def __init__(self, p1, p2):
@@ -45,11 +50,36 @@ class Game:
         self.networking_thread.daemon = True
         self.networking_thread.start()
 
+    # Method to update button images
+    # def update_images(self, event=None):
+    #     global last_update_size
+    #
+    #     new_size = (event.width // 8, event.height // 8)
+    #
+    #     # Skip frequent resizes: Only update if the size changes significantly
+    #     if abs(last_update_size[0] - new_size[0]) < 10 and abs(last_update_size[1] - new_size[1]) < 10:
+    #         return
+    #
+    #     last_update_size = new_size
+    #
+    #     for i in range(8):
+    #         for j in range(8):
+    #             if self.board[i][j].image:
+    #                 image = f"{self.board[i][j].direction}{self.board[i][j].name}"
+    #                 piece_images[f"{image}"] = ImageTk.PhotoImage(PILImage.open(f"Images/{image[:-1]}.png").resize((new_size[0], new_size[1])))
+    #                 self.squares[i][j].config(image=piece_images[f"{image}"])
+
+    def check_image(self, piece):
+        global piece_images
+        return piece_images[f"{piece.direction}{piece.name}"]
+
     def listen_to_server(self):
         while True:
             try:
                 self.receive_board_and_turn_from_server()
                 print("Board received ...")
+                print(f"1. Current player: {current_player}")
+                print(f"1. Player assignment: {self.player_assignment}")
                 window.after(0, self.redraw_board(None, False))
                 print("Updating board")
             except Exception as e:
@@ -57,12 +87,13 @@ class Game:
                 break
 
     def send_board_to_server(self):
+        print(f"2. Current player: {current_player}")
+        print(f"2. Player assignment: {self.player_assignment}")
         before = {"board": self.board, "duck_squares": duck_squares}
         # print(f"Before: {before}")
         to_send = pickle.dumps({"board": pickle.dumps(self.board), "duck_squares": duck_squares, "scores": scores})
         # print(f"To send: {to_send}")
         self.client.sendall(to_send)
-        print(f"15. Current player: {current_player}")
 
     def receive_board_and_turn_from_server(self):
         data_received = pickle.loads(self.client.recv(BUFFER_SIZE))
@@ -82,8 +113,6 @@ class Game:
 
             game_message_label.config(text=f"{winner} wins!")
             scores = data_received["scores"]
-            white_score_label.config(text="White: " + str(scores["p1"]))
-            black_score_label.config(text="Black: " + str(scores["p2"]))
 
         # print(f"Current player: {current_player}")
 
@@ -103,14 +132,14 @@ class Game:
                         width=60,
                         command=lambda i=i, j=j: self.check_move(self.board[i][j].position)
                     ))
-                self.squares[i][j].grid(row=i + 1, column=j)
+                self.squares[i][j].grid(row=i + 1, column=j, sticky="nsew")
 
         # Add pieces to the actual board
         self.board[0][0] = self.p2.pieces["rook1"]
         self.board[0][1] = self.p2.pieces["knight1"]
         self.board[0][2] = self.p2.pieces["bishop1"]
-        self.board[0][3] = self.p2.pieces["queen"]
-        self.board[0][4] = self.p2.pieces["king"]
+        self.board[0][3] = self.p2.pieces["queen1"]
+        self.board[0][4] = self.p2.pieces["king1"]
         self.board[0][5] = self.p2.pieces["bishop2"]
         self.board[0][6] = self.p2.pieces["knight2"]
         self.board[0][7] = self.p2.pieces["rook2"]
@@ -120,8 +149,8 @@ class Game:
         self.board[7][0] = self.p1.pieces["rook1"]
         self.board[7][1] = self.p1.pieces["knight1"]
         self.board[7][2] = self.p1.pieces["bishop1"]
-        self.board[7][3] = self.p1.pieces["queen"]
-        self.board[7][4] = self.p1.pieces["king"]
+        self.board[7][3] = self.p1.pieces["queen1"]
+        self.board[7][4] = self.p1.pieces["king1"]
         self.board[7][5] = self.p1.pieces["bishop2"]
         self.board[7][6] = self.p1.pieces["knight2"]
         self.board[7][7] = self.p1.pieces["rook2"]
@@ -139,12 +168,9 @@ class Game:
     def make_check_move_command(self, x, y):
         return lambda: self.check_move(self.board[x][y].position)
 
-    def check_image(self, piece):
-        global piece_images
-        return piece_images[f"{piece.direction}{piece.name}"]
-
     def redraw_board(self, selected_square, highlight):
         global transparent_image
+        global transparent_image_dark
         for i in range(8):
             for j in range(8):
                 if game.board[i][j].image:
@@ -164,13 +190,19 @@ class Game:
 
                 # The following code is for hiding the possible moves, which are shown when creating possible moves
                 if not highlight:
-                    self.squares[i][j].config(bg="SystemButtonFace")
+                    if (i + j) % 2 == 0:
+                        self.squares[i][j].config(bg="SystemButtonFace")
+                    else:
+                        self.squares[i][j].config(bg="Grey")
 
         if selected_square is not None and highlight:
             # If the player has selected a piece to move and it is not the square to move the piece to
             self.squares[selected_square[0]][selected_square[1]].config(bg="orange")
         if selected_square is not None and not highlight:
-            self.squares[selected_square[0]][selected_square[1]].config(bg="SystemButtonFace")
+            if (selected_square[0] + selected_square[1]) % 2 == 0:
+                self.squares[selected_square[0]][selected_square[1]].config(bg="SystemButtonFace")
+            else:
+                self.squares[selected_square[0]][selected_square[1]].config(bg="Grey")
 
     def castle(self, pos1, pos2):
         piece1 = self.board[pos1[0]][pos1[1]]
@@ -211,44 +243,19 @@ class Game:
                         return True
         return False
 
-    def debug_print_board(self):
-        print("--- start ---")
-        for row in game.board:
-            for piece in row:
-                print(piece.name, end=" ")
-            print("\n")
-        print("--- end ---")
-
-    def game_over(self):
-        self.debug_print_board()
-        global current_player
-        global duck_squares
-        current_player = -1
-        duck_squares = []
-        self.p1.recreate_pieces()
-        self.p2.recreate_pieces()
-        self.duck_turn = False
-        # Self.duck_turn = False will have to be sent server-side too
-        # There are also server-side issues after a player has won and has tried to make a move
-        # specifically moving the first piece previously moved
-        self.create_board()
-        self.duck = Duck("duck", True, 2)
-        self.duck.position = None
-        self.redraw_board(None, False)
-        self.debug_print_board()
-
     # Check if a piece can move to a square on the board
     def check_move(self, position):
         global squares_clicked_on
         global transparent_image
         global current_player
         global piece_moves
-        print(position)
+        # print(position)
         piece = self.board[position[0]][position[1]]
         print(piece.name)
 
         print(current_player, self.player_assignment)
-        if int(current_player) == int(self.player_assignment):
+        global game_is_over
+        if int(current_player) == int(self.player_assignment) and not game_is_over:
 
             if piece.direction == current_player or piece.direction == 0 or (
                     piece.direction != current_player and len(squares_clicked_on) == 1):
@@ -299,18 +306,12 @@ class Game:
                                 if "king" in piece.name:
                                     if piece.direction == 1:
                                         scores["p1"] += 1
-                                        white_score_label.config(text="White: " + str(scores["p1"]))
                                         game_message_label.config(text="White wins!")
                                     else:
                                         scores["p2"] += 1
-                                        black_score_label.config(text="Black: " + str(scores["p2"]))
                                         game_message_label.config(text="Black wins!")
-                                    self.game_over()
-                                else:
-                                    if current_player == -1:
-                                        game_message_label.config(text="White, place the duck!")
-                                    else:
-                                        game_message_label.config(text="Black, place the duck!")
+                                    self.redraw_board(None, False, True)
+                                    game_is_over = True
                                 self.redraw_board(squares_clicked_on[0], False)
                                 self.send_board_to_server()
                             else:
@@ -319,10 +320,6 @@ class Game:
                                 squares_clicked_on = []
                                 piece_moves = []
                 else:
-                    if current_player == 1:
-                        game_message_label.config(text="White, make a move!")
-                    else:
-                        game_message_label.config(text="Black, make a move!")
                     if piece.name == "None":
                         print("6")
                         self.duck.position = position
@@ -353,17 +350,17 @@ class Player:
         else:
             first_row = 7
             second_row = 6
-        self.piece_names = {"king": [first_row, 4], "pawn1": [second_row, 0],
+        self.piece_names = {"king1": [first_row, 4], "pawn1": [second_row, 0],
                             "pawn2": [second_row, 1], "pawn3": [second_row, 2],
                             "pawn4": [second_row, 3], "pawn5": [second_row, 4],
                             "pawn6": [second_row, 5], "pawn7": [second_row, 6],
                             "pawn8": [second_row, 7], "rook1": [first_row, 0],
                             "rook2": [first_row, 7], "knight1": [first_row, 1],
                             "knight2": [first_row, 6], "bishop1": [first_row, 2],
-                            "bishop2": [first_row, 5], "queen": [first_row, 3]}
+                            "bishop2": [first_row, 5], "queen1": [first_row, 3]}
 
         global piece_images
-        piece_images["2duck"] = ImageTk.PhotoImage(PILImage.open("Images/duck.png").resize((60, 60)))
+        piece_images["2duck"] = ImageTk.PhotoImage(PILImage.open("Images/2duck.png").resize((60, 60)))
         for piece_name in self.piece_names.keys():
             imagepath = f"Images/{colour}"
             position = []
@@ -390,12 +387,12 @@ class Player:
             else:
                 self.pieces[piece_name] = (Piece(piece_name, True, colour, self.piece_names[piece_name]))
 
-    def recreate_pieces(self):
-        for piece_name in self.piece_names.keys():
-            if "pawn" in piece_name:
-                self.pieces[piece_name] = (Pawn(piece_name, True, self.colour, self.piece_names[piece_name]))
-            else:
-                self.pieces[piece_name] = (Piece(piece_name, True, self.colour, self.piece_names[piece_name]))
+    # def recreate_pieces(self):
+    #     for piece_name in self.piece_names.keys():
+    #         if "pawn" in piece_name:
+    #             self.pieces[piece_name] = (Pawn(piece_name, True, self.colour, self.piece_names[piece_name]))
+    #         else:
+    #             self.pieces[piece_name] = (Piece(piece_name, True, self.colour, self.piece_names[piece_name]))
 
 
 class Piece:
@@ -591,17 +588,10 @@ class Pawn(Piece):
 window = Tk()
 transparent_image = ImageTk.PhotoImage(PILImage.open("Images/transparent_60x60.png"))
 
-white_score_label = Label(window, text="White: 0")
-black_score_label = Label(window, text="Black: 0")
 game_message_label = Label(window, text="White, make a move!")
-white_score_label.grid(row=0, column=0, sticky='w', padx=10)
 game_message_label.grid(row=0, column=1, columnspan=6, sticky='n')
-black_score_label.grid(row=0, column=7, sticky='e', padx=10)
 
 game = Game("p1", "p2")
-# game.swap_board_squares([4, 3], [0, 1])
-# game.swap_board_squares([4, 4], [0, 2])
-# game.swap_board_squares([4, 5], [0, 3])
 game.redraw_board(None, False)
 
 # Make the window resizable
@@ -609,4 +599,5 @@ for i in range(8):
     window.columnconfigure(i, weight=1, minsize=50)
     window.rowconfigure(i, weight=1, minsize=50)
 
+window.bind('<Configure>', game.update_images)
 window.mainloop()
